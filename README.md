@@ -1,109 +1,113 @@
-# Islanzimxit-
--- Variáveis
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local Workspace = game.Workspace
+-- Configuração inicial
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
 
--- Cria a esfera de domínio
-local function createDomainSphere(position, size, parent)
-    local sphere = Instance.new("Part")
-    sphere.Shape = Enum.PartType.Ball
-    sphere.Size = size
-    sphere.Position = position
-    sphere.Anchored = true
-    sphere.CanCollide = false
-    sphere.Material = Enum.Material.Neon
-    sphere.Color = Color3.fromRGB(75, 0, 130) -- Cor base
-    sphere.Parent = parent
+-- Criar o ponto de expansão do domínio (Part)
+local domainPart = Instance.new("Part")
+domainPart.Size = Vector3.new(10, 1, 10)
+domainPart.Position = character.HumanoidRootPart.Position
+domainPart.Anchored = true
+domainPart.CanCollide = false
+domainPart.BrickColor = BrickColor.new("Bright blue")
+domainPart.Parent = workspace
+domainPart.Transparency = 1  -- Inicialmente invisível
 
-    -- Adiciona partículas de galáxia
-    local particleEmitter = Instance.new("ParticleEmitter")
-    particleEmitter.Texture = "rbxassetid://6873659530" -- Textura de galáxia
-    particleEmitter.Rate = 50
-    particleEmitter.Lifetime = NumberRange.new(2, 4)
-    particleEmitter.Speed = NumberRange.new(5, 10)
-    particleEmitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 5), NumberSequenceKeypoint.new(1, 0) })
-    particleEmitter.Parent = sphere
+-- Criar um efeito visual para simular a expansão do domínio
+local domainEffect = Instance.new("SpecialMesh")
+domainEffect.MeshType = Enum.MeshType.Sphere
+domainEffect.Scale = Vector3.new(1, 1, 1)
+domainEffect.Parent = domainPart
 
-    return sphere
-end
-
--- Expansão de domínio
-local function domainExpansion()
-    -- Tela branca em todos os jogadores
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player:FindFirstChild("PlayerGui") then
-            local screen = Instance.new("ScreenGui", player.PlayerGui)
-            screen.IgnoreGuiInset = true
-            screen.ResetOnSpawn = false
-
-            local frame = Instance.new("Frame", screen)
-            frame.Size = UDim2.new(1, 0, 1, 0)
-            frame.BackgroundColor3 = Color3.new(1, 1, 1) -- Branco
-            frame.BackgroundTransparency = 1
-
-            -- Efeito de flash
-            local tween = TweenService:Create(
-                frame,
-                TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-                { BackgroundTransparency = 0 }
-            )
-            tween:Play()
-
-            -- Volta ao normal
-            tween.Completed:Connect(function()
-                local fadeOut = TweenService:Create(
-                    frame,
-                    TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-                    { BackgroundTransparency = 1 }
-                )
-                fadeOut:Play()
-                fadeOut.Completed:Connect(function()
-                    screen:Destroy()
-                end)
-            end)
+-- Função para expandir o domínio e criar efeitos
+local function expandDomain()
+    -- Expansão do domínio
+    for i = 1, 20 do
+        domainPart.Size = domainPart.Size + Vector3.new(2, 0, 2)  -- Aumenta a área
+        domainEffect.Scale = domainEffect.Scale + Vector3.new(0.1, 0.1, 0.1)  -- Expande o efeito visual
+        domainPart.CFrame = domainPart.CFrame * CFrame.new(0, 0, 0.1)  -- Ajusta posição lentamente
+        wait(0.1)  -- Tempo entre expansões
+    end
+    
+    -- Detectar jogadores dentro da área da expansão e causar dano/matar
+    local playersInRange = {}  -- Lista de jogadores dentro da área
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
+            local humanoid = obj.Humanoid
+            local distance = (domainPart.Position - obj.PrimaryPart.Position).Magnitude
+            if distance <= domainPart.Size.X / 2 then  -- Verifica se está dentro da área da expansão
+                table.insert(playersInRange, obj)
+            end
         end
     end
 
-    -- Criação da esfera de domínio
-    local domainCenter = Workspace:FindFirstChild("DomainCenter") or Instance.new("Part", Workspace)
-    domainCenter.Name = "DomainCenter"
-    domainCenter.Anchored = true
-    domainCenter.CanCollide = false
-    domainCenter.Transparency = 1
-    domainCenter.Size = Vector3.new(1, 1, 1)
-    domainCenter.Position = Vector3.new(0, 50, 0) -- Posição da esfera
-
-    local sphere = createDomainSphere(domainCenter.Position, Vector3.new(50, 50, 50), Workspace)
-
-    -- Puxar jogadores para o centro
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local rootPart = player.Character.HumanoidRootPart
-            rootPart.Anchored = false
-            local bodyPosition = Instance.new("BodyPosition")
-            bodyPosition.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-            bodyPosition.Position = domainCenter.Position
-            bodyPosition.P = 1e5
-            bodyPosition.Parent = rootPart
-
-            -- Remove o BodyPosition após 3 segundos
-            game:GetService("Debris"):AddItem(bodyPosition, 3)
+    -- Matar ou causar dano aos jogadores dentro da expansão
+    for _, playerModel in pairs(playersInRange) do
+        local playerHumanoid = playerModel:FindFirstChild("Humanoid")
+        if playerHumanoid then
+            -- Aqui a "morte" do jogador
+            playerHumanoid.Health = 0  -- Isso mata o jogador
+            -- Ou você pode dar dano, por exemplo:
+            -- playerHumanoid:TakeDamage(playerHumanoid.Health)  -- Dano total
         end
     end
-
-    -- Expansão da esfera
-    local sphereTween = TweenService:Create(
-        sphere,
-        TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-        { Size = Vector3.new(200, 200, 200) }
-    )
-    sphereTween:Play()
-
-    sphereTween.Completed:Connect(function()
-        sphere:Destroy()
-    end)
 end
 
--- Ativa a expansão de domínio
-domainExpansion()
+-- Criar a interface de "Sim ou Não"
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 300, 0, 200)
+frame.Position = UDim2.new(0.5, -150, 0.5, -100)
+frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+frame.BackgroundTransparency = 0.5
+frame.Parent = screenGui
+
+local questionLabel = Instance.new("TextLabel")
+questionLabel.Size = UDim2.new(1, 0, 0.4, 0)
+questionLabel.Position = UDim2.new(0, 0, 0, 0)
+questionLabel.Text = "Você quer ativar a Expansão de Domínio?"
+questionLabel.TextSize = 20
+questionLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+questionLabel.BackgroundTransparency = 1
+questionLabel.Parent = frame
+
+local yesButton = Instance.new("TextButton")
+yesButton.Size = UDim2.new(0.4, 0, 0.3, 0)
+yesButton.Position = UDim2.new(0.1, 0, 0.6, 0)
+yesButton.Text = "Sim"
+yesButton.TextSize = 20
+yesButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+yesButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+yesButton.Parent = frame
+
+local noButton = Instance.new("TextButton")
+noButton.Size = UDim2.new(0.4, 0, 0.3, 0)
+noButton.Position = UDim2.new(0.5, 0, 0.6, 0)
+noButton.Text = "Não"
+noButton.TextSize = 20
+noButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+noButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+noButton.Parent = frame
+
+-- Função para esconder a interface e ativar a expansão
+local function onYesClick()
+    -- Esconder UI
+    screenGui:Destroy()
+
+    -- Ativar a expansão de domínio
+    expandDomain()
+end
+
+local function onNoClick()
+    -- Esconder UI
+    screenGui:Destroy()
+
+    -- Mensagem de "não ativar"
+    print("Você escolheu não ativar a Expansão de Domínio.")
+end
+
+-- Conectar os botões aos eventos
+yesButton.MouseButton1Click:Connect(onYesClick)
+noButton.MouseButton1Click:Connect(onNoClick)
